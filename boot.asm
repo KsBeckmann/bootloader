@@ -25,6 +25,16 @@ mov dh, 0x0
 mov dl, 0x0
 int 0x10
 
+; print sting
+mov ah, 0x13
+mov al, 0x01
+xor bh, bh
+mov bl, 0x0C
+mov cx, 0x10
+xor dx, dx
+mov bp, string
+int 0x10
+
 ; print keyboard input
 keyboard_loop:
   xor ah, ah
@@ -36,8 +46,8 @@ keyboard_loop:
 halt:
   jmp halt
 
-; hello:
-;   db "hello >:(", 0x00
+string:
+   db "type something: ", 0x00
 
 times 510 - ($ - $$) db 0x00
 dw 0xAA55
