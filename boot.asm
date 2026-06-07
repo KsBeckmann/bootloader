@@ -21,36 +21,23 @@ int 0x10
 mov ah, 0x02
 xor bh, bh
 xor dx, dx
-mov dh, 0x0C
-mov dl, 0x23
+mov dh, 0x0
+mov dl, 0x0
 int 0x10
 
-; print hello
-mov si, 0x00
-init_loop:
-  mov al, [hello + si]
-  mov [si_save], si
+; print keyboard input
+keyboard_loop:
+  xor ah, ah
+  int 0x16
   mov ah, 0x0E
-  mov bh, 0x00
   int 0x10
-  mov si, [si_save]
-  add si, 0x01
-  cmp byte [hello + si], 0x00
-  jne init_loop
+  jmp keyboard_loop
 
-; halt
 halt:
-  ; workaround: keeps calling BIOS to prevent firmware from rebooting on inactivity
-  mov ah, 0x0E
-  mov al, 0x08
-  mov bh, 0x00
-  int 0x10
   jmp halt
 
-si_save: dw 0
-
-hello:
-  db "hello >:(", 0x00
+; hello:
+;   db "hello >:(", 0x00
 
 times 510 - ($ - $$) db 0x00
 dw 0xAA55
