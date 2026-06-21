@@ -50,8 +50,23 @@ jz no_cpuid
 mov si, cpuid_supported
 call print
 
-call print_vendor
-call print_cpu_brand
+; check A20 line
+xor ax, ax
+mov es, ax
+mov ax, 0xFFFF
+mov fs, ax
+
+mov byte [es:0x0500], 0x00
+mov byte [fs:0x0510], 0xFF
+
+mov al, [es:0x0500]
+cmp al, [fs:0x0510]
+jne .skip
+call enable_a20
+.skip:
+
+mov si, a20_enabled
+call print
 
 halt:
   hlt
@@ -62,71 +77,13 @@ no_cpuid:
   call print
   jmp halt
 
-print_vendor:
-  push eax
-  push ebx
-  push ecx
-  push edx
-
-  xor eax, eax
-  mov si, msg_vendor
+enable_a20:
+  mov si, a20_disabled
   call print
-  cpuid
-  mov [vendor_id+0], ebx
-  mov [vendor_id+4], edx
-  mov [vendor_id+8], ecx
-  mov si, vendor_id
-  call print
-
-  mov si, break_line
-  call print
-
-  pop edx
-  pop ecx
-  pop ebx
-  pop eax
-  ret
-
-print_cpu_brand:
-  push eax
-  push ebx
-  push ecx
-  push edx
-
-  mov si, msg_cpu_brand
-  call print
-  
-  mov eax, 0x80000002
-  cpuid
-  mov [cpu_brand+0],  eax
-  mov [cpu_brand+4],  ebx
-  mov [cpu_brand+8],  ecx
-  mov [cpu_brand+12], edx
-
-  mov eax, 0x80000003
-  cpuid
-  mov [cpu_brand+16],  eax
-  mov [cpu_brand+20],  ebx
-  mov [cpu_brand+24],  ecx
-  mov [cpu_brand+28], edx
-
-  mov eax, 0x80000004
-  cpuid
-  mov [cpu_brand+32],  eax
-  mov [cpu_brand+36],  ebx
-  mov [cpu_brand+40],  ecx
-  mov [cpu_brand+44],  edx
-
-  mov si, cpu_brand
-  call print
-
-  ; mov si, break_line
-  ; call print
-
-  pop edx
-  pop ecx
-  pop ebx
-  pop eax
+  push ax
+  mov ax, 0x2401
+  int 0x15
+  pop ax
   ret
 
 ; print a null-terminated string
@@ -152,11 +109,8 @@ print:
 starting_boot:       db "starting bootloader...", 0x0D, 0x0A, 0
 cpuid_supported:     db "CPUID supported", 0x0D, 0x0A, 0
 cpuid_not_supported: db "CPUID NOT supported", 0x0D, 0x0A, 0
-msg_vendor:          db "vendor id: ", 0
-vendor_id:           times 13 db 0
-msg_cpu_brand:       db "cpu brand: ", 0
-cpu_brand:           times 49 db 0
-break_line:          db 0x0D, 0x0A, 0
+a20_enabled:         db "A20 enabled", 0x0D, 0x0A, 0
+a20_disabled:        db "A20 disabled", 0x0D, 0x0A, 0
 
 times 510 - ($ - $$) db 0x00
 dw 0xAA55
