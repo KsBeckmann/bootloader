@@ -15,6 +15,8 @@ mov sp, 0x7C00
 sti
 cld
 
+mov [boot_drive], dl
+
 ; clear screen
 mov ah, 0x06
 mov al, 0x00
@@ -34,110 +36,55 @@ int 0x10
 mov si, starting_boot
 call print
 
-; check CPUID
-pushfd
-pop eax
-mov ecx, eax
-xor eax, 0x00200000
-push eax
-popfd
-pushfd
-pop eax
-xor eax, ecx
-and eax, 0x00200000
-jz no_cpuid
+call check_cpuid
 
-mov si, cpuid_supported
-call print
+call check_a20
 
-; check A20 line
-xor ax, ax
-mov es, ax
-mov ax, 0xFFFF
-mov fs, ax
+call load_gdt
 
-mov byte [es:0x0500], 0x00
-mov byte [fs:0x0510], 0xFF
+mov ah, 0x02
+mov al, 16
+mov ch, 0
+mov dh, 0
+mov cl, 2
+mov dl, [boot_drive]
+mov bx, 0x1000
+mov es, bx
+xor bx, bx
+int 0x13
+jc disk_error
 
-mov al, [es:0x0500]
-cmp al, [fs:0x0510]
-jne .skip
-call enable_a20
-.skip:
+; inform BIOS of target processor mode
+mov ax, 0xEC00
+mov bl, 0x01      ; 1 = legacy (32 bits)
+int 0x15
 
-mov si, a20_enabled
-call print
-
-; GDT flat
-lgdt [gdt_descriptor]
-mov si, gdt_message
-call print
+; enter protected mode
+cli
+mov eax, cr0
+or eax, 1
+mov cr0, eax
+jmp 0x08:protected_mode_start
 
 halt:
   hlt
   jmp halt
 
-no_cpuid:
-  mov si, cpuid_not_supported
-  call print
-  jmp halt
+%include "print.asm"
+%include "cpuid.asm"
+%include "a20.asm"
+%include "gdt.asm"
+%include "protected_mode.asm"
 
-enable_a20:
-  mov si, a20_disabled
-  call print
-  push ax
-  mov ax, 0x2401
-  int 0x15
-  pop ax
-  ret
+disk_error:
+    mov si, disk_error_msg
+    call print
+    jmp halt
 
-; print a null-terminated string
-; input: SI -> string
-print:
-  push ax
-  push bx
-  push si
-  mov bh, 0
-.loop:
-  lodsb
-  cmp al, 0
-  je .done
-  mov ah, 0x0E
-  int 0x10
-  jmp .loop
-.done:
-  pop si
-  pop bx
-  pop ax
-  ret
+boot_drive:    db 0
 
-starting_boot:       db "starting bootloader...", 0x0D, 0x0A, 0
-cpuid_supported:     db "CPUID supported", 0x0D, 0x0A, 0
-cpuid_not_supported: db "CPUID NOT supported", 0x0D, 0x0A, 0
-a20_enabled:         db "A20 enabled", 0x0D, 0x0A, 0
-a20_disabled:        db "A20 disabled", 0x0D, 0x0A, 0
-gdt_message:         db "GDT loaded", 0x0D, 0x0A, 0
-
-gdt_start:
-  dq 0x0000000000000000
-  dw 0xFFFF
-  dw 0x0000
-  db 0x00
-  db 10011010b
-  db 11001111b
-  db 0x00
-
-  dw 0xFFFF
-  dw 0x0000
-  db 0x00
-  db 10010010b
-  db 11001111b
-  db 0x00
-gdt_end:
-
-gdt_descriptor:
-  dw gdt_end - gdt_start - 1
-  dd gdt_start
+starting_boot: db "starting bootloader...", 0x0D, 0x0A, 0
+disk_error_msg: db "disk read error", 0x0D, 0x0A, 0
 
 times 510 - ($ - $$) db 0x00
 dw 0xAA55
