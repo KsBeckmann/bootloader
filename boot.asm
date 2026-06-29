@@ -17,6 +17,11 @@ cld
 
 mov [boot_drive], dl
 
+; force 80x25 color text mode (mode 3) -- some BIOSes boot in 40-column mode
+mov ah, 0x00
+mov al, 0x03
+int 0x10
+
 ; clear screen
 mov ah, 0x06
 mov al, 0x00
@@ -42,15 +47,10 @@ call check_a20
 
 call load_gdt
 
-mov ah, 0x02
-mov al, 16
-mov ch, 0
-mov dh, 0
-mov cl, 2
+; load kernel via LBA (int 0x13 AH=0x42) -> robust, no CHS track-boundary limit
+mov si, dap
+mov ah, 0x42
 mov dl, [boot_drive]
-mov bx, 0x1000
-mov es, bx
-xor bx, bx
 int 0x13
 jc disk_error
 
@@ -82,6 +82,15 @@ disk_error:
     jmp halt
 
 boot_drive:    db 0
+
+; Disk Address Packet for the LBA read (int 0x13 AH=0x42)
+dap:
+    db 0x10           ; packet size (16 bytes)
+    db 0x00           ; reserved
+    dw 16             ; sectors to read
+    dw 0x0000         ; destination offset
+    dw 0x1000         ; destination segment (0x1000:0000 = 0x10000)
+    dq 1              ; starting LBA (sector 0 = boot sector, kernel at LBA 1)
 
 starting_boot: db "starting bootloader...", 0x0D, 0x0A, 0
 disk_error_msg: db "disk read error", 0x0D, 0x0A, 0
