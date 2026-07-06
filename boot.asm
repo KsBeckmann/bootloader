@@ -59,6 +59,22 @@ mov ax, 0xEC00
 mov bl, 0x01      ; 1 = legacy (32 bits)
 int 0x15
 
+; move hardware cursor off-screen (this BIOS ignores the disable bit); done
+; last, after all BIOS video output, so nothing moves it back
+mov dx, 0x3D4
+mov al, 0x0F      ; cursor location low byte
+out dx, al
+inc dx            ; 0x3D5
+mov al, 0xFF
+out dx, al
+
+mov dx, 0x3D4
+mov al, 0x0E      ; cursor location high byte
+out dx, al
+inc dx            ; 0x3D5
+mov al, 0xFF
+out dx, al
+
 ; enter protected mode
 cli
 mov eax, cr0
@@ -87,7 +103,7 @@ boot_drive:    db 0
 dap:
     db 0x10           ; packet size (16 bytes)
     db 0x00           ; reserved
-    dw 16             ; sectors to read
+    dw 120            ; sectors to read
     dw 0x0000         ; destination offset
     dw 0x1000         ; destination segment (0x1000:0000 = 0x10000)
     dq 1              ; starting LBA (sector 0 = boot sector, kernel at LBA 1)
