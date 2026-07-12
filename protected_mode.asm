@@ -8,9 +8,13 @@ protected_mode_start:
   mov ss, ax
   mov esp, 0x90000
 
-  jmp 0x10000
+  %include "paging.asm"
+
+  jmp 0x18:long_mode_start
 
 .hang:
   cli
   hlt
   jmp .hang
+
+  %include "long_mode.asm"
